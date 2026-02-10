@@ -1,6 +1,7 @@
 services:
-  ha-mcp:
-    build: .
+  smarthome-mcp:
+    image: ghcr.io/saturate/smarthome-mcp:latest
+    # build: .  # uncomment to build locally instead
     ports:
       - "3000:3000"
     environment:

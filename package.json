@@ -1,6 +1,6 @@
 {
   "name": "smarthome-mcp",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Smart Home MCP Server — bridges Claude Code to Home Assistant (and more) via REST API",
   "type": "module",
   "scripts": {
