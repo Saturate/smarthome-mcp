@@ -1,0 +1,10 @@
+services:
+  ha-mcp:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - HA_URL=${HA_URL:-http://homeassistant.local:8123}
+      - HA_TOKEN=${HA_TOKEN}
+      - PORT=3000
+    restart: unless-stopped
