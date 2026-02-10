@@ -4,23 +4,23 @@ MCP server that connects Claude Code (or any MCP client) to Home Assistant via i
 
 ## Tools
 
-| Tool                     | Description                                              |
-| ------------------------ | -------------------------------------------------------- |
-| `light.turn_on`          | Turn on a light entity                                   |
-| `light.turn_off`         | Turn off a light entity                                  |
-| `light.set_brightness`   | Set brightness (0-255)                                   |
-| `light.turn_on_in_area`  | Turn on all lights in an area                            |
-| `light.turn_off_in_area` | Turn off all lights in an area                           |
-| `entity.get_state`       | Get state of any entity                                  |
-| `entity.list`            | List entities by domain, filter by device_class or state |
-| `entity.search`          | Search entities by keyword                               |
-| `area.get_status`        | Get all entity states in an area                         |
-| `area.list`              | List all configured areas                                |
-| `todo.get_items`         | Get items from a todo list                               |
-| `todo.add_item`          | Add item to a todo list                                  |
-| `todo.update_item`       | Rename or change status of a todo item                   |
-| `todo.remove_item`       | Remove item from a todo list                             |
-| `service.call`           | Generic escape hatch for any HA service                  |
+| Tool                        | Description                                              |
+| --------------------------- | -------------------------------------------------------- |
+| `ha_light.turn_on`          | Turn on a light entity                                   |
+| `ha_light.turn_off`         | Turn off a light entity                                  |
+| `ha_light.set_brightness`   | Set brightness (0-255)                                   |
+| `ha_light.turn_on_in_area`  | Turn on all lights in an area                            |
+| `ha_light.turn_off_in_area` | Turn off all lights in an area                           |
+| `ha_entity.get_state`       | Get state of any entity                                  |
+| `ha_entity.list`            | List entities by domain, filter by device_class or state |
+| `ha_entity.search`          | Search entities by keyword                               |
+| `ha_area.get_status`        | Get all entity states in an area                         |
+| `ha_area.list`              | List all configured areas                                |
+| `ha_todo.get_items`         | Get items from a todo list                               |
+| `ha_todo.add_item`          | Add item to a todo list                                  |
+| `ha_todo.update_item`       | Rename or change status of a todo item                   |
+| `ha_todo.remove_item`       | Remove item from a todo list                             |
+| `ha_service.call`           | Generic escape hatch for any HA service                  |
 
 ## Setup
 

@@ -37,7 +37,7 @@ export function createServer(ha: HAClient): McpServer {
   // ── Light controls ──────────────────────────────────────────────
 
   server.tool(
-    "light.turn_on",
+    "ha_light.turn_on",
     "Turn on a light entity",
     { entity_id: z.string().describe("The light entity id, e.g. light.kitchen") },
     async ({ entity_id }) => {
@@ -47,7 +47,7 @@ export function createServer(ha: HAClient): McpServer {
   );
 
   server.tool(
-    "light.turn_off",
+    "ha_light.turn_off",
     "Turn off a light entity",
     { entity_id: z.string().describe("The light entity id, e.g. light.kitchen") },
     async ({ entity_id }) => {
@@ -57,7 +57,7 @@ export function createServer(ha: HAClient): McpServer {
   );
 
   server.tool(
-    "light.set_brightness",
+    "ha_light.set_brightness",
     "Set the brightness of a light (0–255)",
     {
       entity_id: z.string().describe("The light entity id"),
@@ -75,7 +75,7 @@ export function createServer(ha: HAClient): McpServer {
   // ── Area-based light controls ───────────────────────────────────
 
   server.tool(
-    "light.turn_on_in_area",
+    "ha_light.turn_on_in_area",
     "Turn on all lights in a named area (e.g. 'kitchen', 'living_room')",
     { area: z.string().describe("Area id as known in Home Assistant") },
     async ({ area }) => {
@@ -92,7 +92,7 @@ export function createServer(ha: HAClient): McpServer {
   );
 
   server.tool(
-    "light.turn_off_in_area",
+    "ha_light.turn_off_in_area",
     "Turn off all lights in a named area",
     { area: z.string().describe("Area id as known in Home Assistant") },
     async ({ area }) => {
@@ -111,7 +111,7 @@ export function createServer(ha: HAClient): McpServer {
   // ── State queries ───────────────────────────────────────────────
 
   server.tool(
-    "entity.get_state",
+    "ha_entity.get_state",
     "Get the current state and attributes of any entity",
     { entity_id: z.string().describe("Entity id, e.g. sensor.temperature") },
     async ({ entity_id }) => {
@@ -121,7 +121,7 @@ export function createServer(ha: HAClient): McpServer {
   );
 
   server.tool(
-    "area.get_status",
+    "ha_area.get_status",
     "Get the state of all entities in an area",
     { area: z.string().describe("Area id") },
     async ({ area }) => {
@@ -137,7 +137,7 @@ export function createServer(ha: HAClient): McpServer {
   );
 
   server.tool(
-    "area.list",
+    "ha_area.list",
     "List all areas configured in Home Assistant",
     {},
     async () => {
@@ -155,7 +155,7 @@ export function createServer(ha: HAClient): McpServer {
   // ── Entity discovery ─────────────────────────────────────────────
 
   server.tool(
-    "entity.list",
+    "ha_entity.list",
     "List all entities for a domain (e.g. light, sensor, switch, climate) with their current states. Optionally filter by device_class (e.g. temperature, humidity, motion).",
     {
       domain: z.string().describe("Entity domain: light, sensor, switch, binary_sensor, climate, etc."),
@@ -180,7 +180,7 @@ export function createServer(ha: HAClient): McpServer {
   );
 
   server.tool(
-    "entity.search",
+    "ha_entity.search",
     "Search entities by keyword across entity IDs and friendly names. Returns matching entities with their current states.",
     {
       query: z.string().describe("Search term to match against entity_id and friendly_name"),
@@ -205,8 +205,8 @@ export function createServer(ha: HAClient): McpServer {
   // ── Todo lists ───────────────────────────────────────────────────
 
   server.tool(
-    "todo.get_items",
-    "Get items from a Home Assistant todo list. Use entity.list with domain 'todo' to discover available lists first.",
+    "ha_todo.get_items",
+    "Get items from a Home Assistant todo list. Use ha_entity.list with domain 'todo' to discover available lists first.",
     {
       entity_id: z.string().describe("Todo list entity id, e.g. todo.shopping_list"),
       status: z.enum(["needs_action", "completed"]).optional().describe("Filter by status. Omit to return all items."),
@@ -221,7 +221,7 @@ export function createServer(ha: HAClient): McpServer {
   );
 
   server.tool(
-    "todo.add_item",
+    "ha_todo.add_item",
     "Add an item to a Home Assistant todo list",
     {
       entity_id: z.string().describe("Todo list entity id, e.g. todo.shopping_list"),
@@ -234,8 +234,8 @@ export function createServer(ha: HAClient): McpServer {
   );
 
   server.tool(
-    "todo.update_item",
-    "Update a todo item's text or status (mark as completed/needs_action). Use todo.get_items first to find the item name.",
+    "ha_todo.update_item",
+    "Update a todo item's text or status (mark as completed/needs_action). Use ha_todo.get_items first to find the item name.",
     {
       entity_id: z.string().describe("Todo list entity id"),
       item: z.string().describe("Current item text (must match exactly)"),
@@ -254,7 +254,7 @@ export function createServer(ha: HAClient): McpServer {
   );
 
   server.tool(
-    "todo.remove_item",
+    "ha_todo.remove_item",
     "Remove an item from a Home Assistant todo list",
     {
       entity_id: z.string().describe("Todo list entity id"),
@@ -269,7 +269,7 @@ export function createServer(ha: HAClient): McpServer {
   // ── Generic service call ────────────────────────────────────────
 
   server.tool(
-    "service.call",
+    "ha_service.call",
     "Call any Home Assistant service (escape hatch for anything not covered by other tools)",
     {
       domain: z.string().describe("Service domain, e.g. 'switch', 'climate'"),
