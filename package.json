@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js"
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "check": "biome check src/",
+    "format": "biome format --write src/",
+    "test": "vitest run"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
@@ -16,11 +19,13 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.3.14",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.18"
   },
   "packageManager": "pnpm@10.29.2",
   "engines": {

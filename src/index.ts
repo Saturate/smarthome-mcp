@@ -1,15 +1,15 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
-import express from "express";
-import cors from "cors";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
-import { createServer } from "./server.js";
+import cors from "cors";
+import express from "express";
 import { HAClient } from "./ha-client.js";
+import { createServer } from "./server.js";
 
-const HA_URL = process.env["HA_URL"];
-const HA_TOKEN = process.env["HA_TOKEN"];
-const PORT = Number(process.env["PORT"] ?? 3000);
+const HA_URL = process.env.HA_URL;
+const HA_TOKEN = process.env.HA_TOKEN;
+const PORT = Number(process.env.PORT ?? 3000);
 
 if (!HA_URL || !HA_TOKEN) {
   console.error("Missing required env vars: HA_URL and HA_TOKEN");
@@ -63,7 +63,10 @@ app.post("/mcp", async (req, res) => {
 
   res.status(400).json({
     jsonrpc: "2.0",
-    error: { code: -32000, message: "Bad Request: no valid session or initialize request" },
+    error: {
+      code: -32000,
+      message: "Bad Request: no valid session or initialize request",
+    },
     id: null,
   });
 });
@@ -73,7 +76,10 @@ app.get("/mcp", async (req, res) => {
   if (!sessionId || !transports[sessionId]) {
     res.status(400).json({
       jsonrpc: "2.0",
-      error: { code: -32000, message: "Bad Request: missing or invalid session" },
+      error: {
+        code: -32000,
+        message: "Bad Request: missing or invalid session",
+      },
       id: null,
     });
     return;
@@ -87,7 +93,10 @@ app.delete("/mcp", async (req, res) => {
   if (!sessionId || !transports[sessionId]) {
     res.status(400).json({
       jsonrpc: "2.0",
-      error: { code: -32000, message: "Bad Request: missing or invalid session" },
+      error: {
+        code: -32000,
+        message: "Bad Request: missing or invalid session",
+      },
       id: null,
     });
     return;

@@ -21,13 +21,18 @@ export class HAClient {
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      throw new Error(`HA API ${response.status}: ${response.statusText} — ${body}`);
+      throw new Error(
+        `HA API ${response.status}: ${response.statusText} — ${body}`,
+      );
     }
 
     return response.json() as Promise<T>;
   }
 
-  private async requestText(path: string, options?: RequestInit): Promise<string> {
+  private async requestText(
+    path: string,
+    options?: RequestInit,
+  ): Promise<string> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       ...options,
       headers: { ...this.headers, ...options?.headers },
@@ -36,7 +41,9 @@ export class HAClient {
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      throw new Error(`HA API ${response.status}: ${response.statusText} — ${body}`);
+      throw new Error(
+        `HA API ${response.status}: ${response.statusText} — ${body}`,
+      );
     }
 
     return response.text();
@@ -58,7 +65,7 @@ export class HAClient {
   async callService(
     domain: string,
     service: string,
-    data?: Record<string, unknown>
+    data?: Record<string, unknown>,
   ): Promise<HAEntityState[]> {
     return this.request<HAEntityState[]>(`/api/services/${domain}/${service}`, {
       method: "POST",
@@ -72,7 +79,7 @@ export class HAClient {
   async callServiceWithResponse(
     domain: string,
     service: string,
-    data?: Record<string, unknown>
+    data?: Record<string, unknown>,
   ): Promise<unknown> {
     return this.request(`/api/services/${domain}/${service}?return_response`, {
       method: "POST",
@@ -105,7 +112,9 @@ export class HAClient {
    * Resolves entity_id → { area, device } for a batch of entities.
    * Checks entity area first, falls back to device area, and includes device name.
    */
-  async getEntityMetaMap(entityIds: string[]): Promise<Record<string, { area: string | null; device: string | null }>> {
+  async getEntityMetaMap(
+    entityIds: string[],
+  ): Promise<Record<string, { area: string | null; device: string | null }>> {
     if (entityIds.length === 0) return {};
     const idList = entityIds.map((id) => `'${id}'`).join(", ");
     const template = `{%- set ns = namespace(d={}) -%}
@@ -127,23 +136,27 @@ export class HAClient {
 
   async getEntitiesInArea(areaId: string): Promise<string[]> {
     const raw = await this.renderTemplate(
-      `{{ area_entities('${areaId}') | list }}`
+      `{{ area_entities('${areaId}') | list }}`,
     );
     return this.parseJinjaList(raw);
   }
 
-  /**
-   * Parses the string representation of a Python list that HA's template API returns.
-   * e.g. "['kitchen', 'living_room']" → ["kitchen", "living_room"]
-   */
   private parseJinjaList(raw: string): string[] {
-    const trimmed = raw.trim();
-    if (trimmed === "[]") return [];
-
-    return trimmed
-      .slice(1, -1)
-      .split(",")
-      .map((s) => s.trim().replace(/^['"]|['"]$/g, ""))
-      .filter(Boolean);
+    return parseJinjaList(raw);
   }
+}
+
+/**
+ * Parses the string representation of a Python list that HA's template API returns.
+ * e.g. "['kitchen', 'living_room']" -> ["kitchen", "living_room"]
+ */
+export function parseJinjaList(raw: string): string[] {
+  const trimmed = raw.trim();
+  if (trimmed === "[]") return [];
+
+  return trimmed
+    .slice(1, -1)
+    .split(",")
+    .map((s) => s.trim().replace(/^['"]|['"]$/g, ""))
+    .filter(Boolean);
 }
