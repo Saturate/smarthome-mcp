@@ -1,7 +1,8 @@
 use tokio_util::sync::CancellationToken;
 
 use smarthome_mcp::config::Config;
-use smarthome_mcp::create_router;
+use smarthome_mcp::create_router_with_ha;
+use smarthome_mcp::ha::HaClient;
 
 #[tokio::main]
 async fn main() {
@@ -14,19 +15,22 @@ async fn main() {
 
     let config = Config::load();
 
-    if let Some(ref ha) = config.ha {
-        tracing::info!(url = %ha.url, "Home Assistant backend configured");
-    }
+    let ha = config.ha.as_ref().map(|ha_config| {
+        tracing::info!(url = %ha_config.url, "Home Assistant backend configured");
+        HaClient::new(ha_config)
+    });
+
     if let Some(ref z2m) = config.z2m {
         tracing::info!(host = %z2m.mqtt_host, topic = %z2m.base_topic, "Zigbee2MQTT backend configured");
     }
+
     if config.is_open_auth() {
         tracing::warn!("no auth configured, all requests allowed");
     }
 
     let port = config.server.port;
     let ct = CancellationToken::new();
-    let router = create_router();
+    let router = create_router_with_ha(ha);
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
         .await
