@@ -101,6 +101,8 @@ impl Z2mClient {
         let client_id = format!("smarthome-mcp-{}", std::process::id());
         let mut opts = MqttOptions::new(client_id, &host, port);
         opts.set_keep_alive(Duration::from_secs(30));
+        // Z2M bridge/devices can be large with many devices
+        opts.set_max_packet_size(1024 * 1024, 1024 * 1024);
 
         if let (Some(user), Some(pass)) = (&config.mqtt_user, &config.mqtt_pass) {
             opts.set_credentials(user, pass);
