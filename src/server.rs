@@ -589,6 +589,10 @@ pub fn create_mcp_router(ha: Option<HaClient>, z2m: Option<Z2mClient>) -> axum::
     let ct = CancellationToken::new();
     let config = StreamableHttpServerConfig::default().with_cancellation_token(ct);
     let session_manager = Arc::new(LocalSessionManager::default());
+
+    let ha_for_health = ha.clone();
+    let z2m_for_health = z2m.clone();
+
     let service = StreamableHttpService::new(
         move || {
             Ok(SmartHomeMcp {
@@ -599,5 +603,68 @@ pub fn create_mcp_router(ha: Option<HaClient>, z2m: Option<Z2mClient>) -> axum::
         session_manager,
         config,
     );
-    axum::Router::new().nest_service("/mcp", service)
+
+    axum::Router::new()
+        .route(
+            "/health",
+            axum::routing::get(move || health_handler(ha_for_health.clone(), z2m_for_health.clone())),
+        )
+        .nest_service("/mcp", service)
+}
+
+async fn health_handler(
+    ha: Option<HaClient>,
+    z2m: Option<Z2mClient>,
+) -> axum::Json<serde_json::Value> {
+    let mut backends = serde_json::Map::new();
+    let mut all_ok = true;
+    let mut any_configured = false;
+
+    if let Some(ref ha) = ha {
+        any_configured = true;
+        match ha.check_connection().await {
+            Ok(()) => {
+                backends.insert(
+                    "ha".to_string(),
+                    serde_json::json!({"status": "ok"}),
+                );
+            }
+            Err(e) => {
+                all_ok = false;
+                backends.insert(
+                    "ha".to_string(),
+                    serde_json::json!({"status": "unavailable", "error": e.to_string()}),
+                );
+            }
+        }
+    }
+
+    if let Some(ref z2m) = z2m {
+        any_configured = true;
+        if z2m.is_connected().await {
+            backends.insert(
+                "z2m".to_string(),
+                serde_json::json!({"status": "ok"}),
+            );
+        } else {
+            all_ok = false;
+            backends.insert(
+                "z2m".to_string(),
+                serde_json::json!({"status": "unavailable", "error": "MQTT not connected"}),
+            );
+        }
+    }
+
+    let status = if !any_configured || all_ok {
+        "ok"
+    } else if backends.values().all(|v| v.get("status").and_then(|s| s.as_str()) == Some("unavailable")) {
+        "unavailable"
+    } else {
+        "degraded"
+    };
+
+    axum::Json(serde_json::json!({
+        "status": status,
+        "backends": backends,
+    }))
 }
