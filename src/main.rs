@@ -1,8 +1,9 @@
 use tokio_util::sync::CancellationToken;
 
 use smarthome_mcp::config::Config;
-use smarthome_mcp::create_router_with_ha;
+use smarthome_mcp::create_mcp_router;
 use smarthome_mcp::ha::HaClient;
+use smarthome_mcp::z2m::Z2mClient;
 
 #[tokio::main]
 async fn main() {
@@ -20,9 +21,18 @@ async fn main() {
         HaClient::new(ha_config)
     });
 
-    if let Some(ref z2m) = config.z2m {
-        tracing::info!(host = %z2m.mqtt_host, topic = %z2m.base_topic, "Zigbee2MQTT backend configured");
-    }
+    let z2m = if let Some(ref z2m_config) = config.z2m {
+        tracing::info!(host = %z2m_config.mqtt_host, topic = %z2m_config.base_topic, "Zigbee2MQTT backend configured");
+        match Z2mClient::new(z2m_config).await {
+            Ok(client) => Some(client),
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to connect to Zigbee2MQTT, starting without Z2M");
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     if config.is_open_auth() {
         tracing::warn!("no auth configured, all requests allowed");
@@ -30,7 +40,7 @@ async fn main() {
 
     let port = config.server.port;
     let ct = CancellationToken::new();
-    let router = create_router_with_ha(ha);
+    let router = create_mcp_router(ha, z2m);
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
         .await

@@ -5,4 +5,4 @@ mod server;
 pub mod util;
 pub mod z2m;
 
-pub use server::{create_router, create_router_with_ha};
+pub use server::{create_mcp_router, create_router, create_router_with_ha};

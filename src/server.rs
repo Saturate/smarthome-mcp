@@ -12,10 +12,12 @@ use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
 use crate::ha::HaClient;
+use crate::z2m::Z2mClient;
 
 #[derive(Clone)]
 pub struct SmartHomeMcp {
     ha: Option<HaClient>,
+    z2m: Option<Z2mClient>,
 }
 
 impl SmartHomeMcp {
@@ -27,6 +29,12 @@ impl SmartHomeMcp {
         self.ha
             .as_ref()
             .ok_or_else(|| "Home Assistant backend is not configured".to_string())
+    }
+
+    fn z2m_or_err(&self) -> Result<&Z2mClient, String> {
+        self.z2m
+            .as_ref()
+            .ok_or_else(|| "Zigbee2MQTT backend is not configured".to_string())
     }
 }
 
@@ -104,6 +112,44 @@ struct TodoRemoveParam {
     entity_id: String,
     #[schemars(description = "The item text to remove (must match exactly)")]
     item: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct Z2mDeviceNameParam {
+    #[schemars(description = "Zigbee device friendly name")]
+    device: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct Z2mDeviceSetParam {
+    #[schemars(description = "Zigbee device friendly name")]
+    device: String,
+    #[schemars(description = "JSON payload with device attributes to set (e.g. {\"state\": \"ON\", \"brightness\": 200})")]
+    payload: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct Z2mDeviceRenameParam {
+    #[schemars(description = "Current device friendly name")]
+    from: String,
+    #[schemars(description = "New device friendly name")]
+    to: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct Z2mGroupAddParam {
+    #[schemars(description = "Group friendly name")]
+    friendly_name: String,
+    #[schemars(description = "Optional group ID")]
+    id: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct Z2mPermitJoinParam {
+    #[schemars(description = "Enable or disable permit join")]
+    value: bool,
+    #[schemars(description = "Optional: only permit join for a specific device")]
+    device: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -403,18 +449,153 @@ impl SmartHomeMcp {
             Err(e) => format!("error: {e}"),
         }
     }
+
+    // ── Z2M read tools ──────────────────────────────────────────────
+
+    #[tool(name = "z2m_device.list", description = "List all Zigbee devices with their exposed features")]
+    async fn z2m_device_list(&self) -> String {
+        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+        let devices = z2m.get_devices().await;
+        let result: Vec<serde_json::Value> = devices
+            .iter()
+            .map(|d| {
+                let mut v = serde_json::json!({
+                    "friendly_name": d.friendly_name,
+                    "ieee_address": d.ieee_address,
+                    "type": d.device_type,
+                });
+                if let Some(ref def) = d.definition {
+                    v["model"] = serde_json::json!(def.model);
+                    v["vendor"] = serde_json::json!(def.vendor);
+                    v["description"] = serde_json::json!(def.description);
+                    v["exposes"] = serde_json::json!(def.exposes);
+                }
+                v
+            })
+            .collect();
+        Self::text_result(result)
+    }
+
+    #[tool(name = "z2m_device.get_state", description = "Get current state of a Zigbee device (includes availability)")]
+    async fn z2m_device_get_state(&self, Parameters(p): Parameters<Z2mDeviceNameParam>) -> String {
+        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+        let state = z2m.get_device_state(&p.device).await;
+        let availability = z2m.get_device_availability(&p.device).await;
+        Self::text_result(serde_json::json!({
+            "device": p.device,
+            "state": state,
+            "available": availability,
+        }))
+    }
+
+    #[tool(name = "z2m_group.list", description = "List all Zigbee2MQTT groups")]
+    async fn z2m_group_list(&self) -> String {
+        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+        Self::text_result(z2m.get_groups().await)
+    }
+
+    #[tool(name = "z2m_bridge.info", description = "Get Zigbee2MQTT bridge info (coordinator, version, network)")]
+    async fn z2m_bridge_info(&self) -> String {
+        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+        match z2m.get_bridge_info().await {
+            Some(info) => Self::text_result(info),
+            None => Self::text_result(serde_json::json!({"message": "bridge info not yet available"})),
+        }
+    }
+
+    // ── Z2M control tools ───────────────────────────────────────────
+
+    #[tool(name = "z2m_device.set", description = "Set Zigbee device state. Payload is validated against the device's exposes definition.")]
+    async fn z2m_device_set(&self, Parameters(p): Parameters<Z2mDeviceSetParam>) -> String {
+        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+
+        let devices = z2m.get_devices().await;
+        if let Some(exposes) = z2m.find_device_exposes(&devices, &p.device)
+            && let Err(errors) = z2m.validate_payload(&exposes, &p.payload)
+        {
+            return Self::text_result(serde_json::json!({
+                "error": "payload validation failed",
+                "errors": errors,
+            }));
+        }
+
+        let availability = z2m.get_device_availability(&p.device).await;
+        match z2m.set_device_state(&p.device, p.payload).await {
+            Ok(()) => {
+                let mut result = serde_json::json!({"device": p.device, "status": "sent"});
+                if availability == Some(false) {
+                    result["warning"] = serde_json::json!("device is currently unavailable; command queued");
+                }
+                Self::text_result(result)
+            }
+            Err(e) => format!("error: {e}"),
+        }
+    }
+
+    #[tool(name = "z2m_device.rename", description = "Rename a Zigbee device")]
+    async fn z2m_device_rename(&self, Parameters(p): Parameters<Z2mDeviceRenameParam>) -> String {
+        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+        match z2m.bridge_request("device/rename", serde_json::json!({"from": p.from, "to": p.to})).await {
+            Ok(resp) => Self::text_result(resp),
+            Err(e) => format!("error: {e}"),
+        }
+    }
+
+    #[tool(name = "z2m_group.add", description = "Create a Zigbee2MQTT group")]
+    async fn z2m_group_add(&self, Parameters(p): Parameters<Z2mGroupAddParam>) -> String {
+        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+        let mut data = serde_json::json!({"friendly_name": p.friendly_name});
+        if let Some(id) = p.id {
+            data["id"] = serde_json::json!(id);
+        }
+        match z2m.bridge_request("group/add", data).await {
+            Ok(resp) => Self::text_result(resp),
+            Err(e) => format!("error: {e}"),
+        }
+    }
+
+    #[tool(name = "z2m_bridge.permit_join", description = "Enable or disable Zigbee permit join")]
+    async fn z2m_bridge_permit_join(&self, Parameters(p): Parameters<Z2mPermitJoinParam>) -> String {
+        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+        let mut data = serde_json::json!({"value": p.value});
+        if let Some(device) = p.device {
+            data["device"] = serde_json::json!(device);
+        }
+        match z2m.bridge_request("permit_join", data).await {
+            Ok(resp) => Self::text_result(resp),
+            Err(e) => format!("error: {e}"),
+        }
+    }
+
+    #[tool(name = "z2m_bridge.networkmap", description = "Request Zigbee network map")]
+    async fn z2m_bridge_networkmap(&self) -> String {
+        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+        match z2m.bridge_request("networkmap", serde_json::json!({"type": "raw", "routes": false})).await {
+            Ok(resp) => Self::text_result(resp),
+            Err(e) => format!("error: {e}"),
+        }
+    }
 }
 
 pub fn create_router() -> axum::Router {
-    create_router_with_ha(None)
+    create_mcp_router(None, None)
 }
 
 pub fn create_router_with_ha(ha: Option<HaClient>) -> axum::Router {
+    create_mcp_router(ha, None)
+}
+
+pub fn create_mcp_router(ha: Option<HaClient>, z2m: Option<Z2mClient>) -> axum::Router {
     let ct = CancellationToken::new();
     let config = StreamableHttpServerConfig::default().with_cancellation_token(ct);
     let session_manager = Arc::new(LocalSessionManager::default());
     let service = StreamableHttpService::new(
-        move || Ok(SmartHomeMcp { ha: ha.clone() }),
+        move || {
+            Ok(SmartHomeMcp {
+                ha: ha.clone(),
+                z2m: z2m.clone(),
+            })
+        },
         session_manager,
         config,
     );
