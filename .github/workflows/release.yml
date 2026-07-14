@@ -9,29 +9,29 @@ permissions:
   contents: read
   packages: write
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          node-version: 22
-          cache: pnpm
+          components: clippy, rustfmt
 
-      - run: pnpm install --frozen-lockfile
+      - uses: Swatinem/rust-cache@v2
 
-      - name: Type check
-        run: pnpm tsc --noEmit
+      - name: Format check
+        run: cargo fmt --check
 
-      - name: Lint & format
-        run: pnpm run check
+      - name: Clippy
+        run: cargo clippy -- -D warnings
 
       - name: Tests
-        run: pnpm test
+        run: cargo test
 
   docker:
     needs: check
