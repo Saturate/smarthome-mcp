@@ -1626,6 +1626,8 @@ name = "smarthome-mcp"
 version = "0.2.0"
 dependencies = [
  "axum",
+ "bytes",
+ "http-body",
  "http-body-util",
  "ipnet",
  "reqwest",

@@ -1,4 +1,5 @@
 pub mod ip_whitelist;
+pub mod middleware;
 pub mod scopes;
 pub mod token_proxy;
 pub mod token_static;

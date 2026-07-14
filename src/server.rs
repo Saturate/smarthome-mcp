@@ -11,6 +11,8 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
+use crate::auth::AuthResolver;
+use crate::auth::middleware::AuthLayer;
 use crate::ha::HaClient;
 use crate::z2m::Z2mClient;
 
@@ -578,14 +580,14 @@ impl SmartHomeMcp {
 }
 
 pub fn create_router() -> axum::Router {
-    create_mcp_router(None, None)
+    create_mcp_router(None, None, None)
 }
 
-pub fn create_router_with_ha(ha: Option<HaClient>) -> axum::Router {
-    create_mcp_router(ha, None)
-}
-
-pub fn create_mcp_router(ha: Option<HaClient>, z2m: Option<Z2mClient>) -> axum::Router {
+pub fn create_mcp_router(
+    ha: Option<HaClient>,
+    z2m: Option<Z2mClient>,
+    auth: Option<AuthResolver>,
+) -> axum::Router {
     let ct = CancellationToken::new();
     let config = StreamableHttpServerConfig::default().with_cancellation_token(ct);
     let session_manager = Arc::new(LocalSessionManager::default());
@@ -604,12 +606,19 @@ pub fn create_mcp_router(ha: Option<HaClient>, z2m: Option<Z2mClient>) -> axum::
         config,
     );
 
-    axum::Router::new()
-        .route(
-            "/health",
-            axum::routing::get(move || health_handler(ha_for_health.clone(), z2m_for_health.clone())),
-        )
-        .nest_service("/mcp", service)
+    let router = if let Some(resolver) = auth {
+        let auth_service = tower::ServiceBuilder::new()
+            .layer(AuthLayer::new(resolver))
+            .service(service);
+        axum::Router::new().nest_service("/mcp", auth_service)
+    } else {
+        axum::Router::new().nest_service("/mcp", service)
+    };
+
+    router.route(
+        "/health",
+        axum::routing::get(move || health_handler(ha_for_health.clone(), z2m_for_health.clone())),
+    )
 }
 
 async fn health_handler(
