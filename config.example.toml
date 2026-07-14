@@ -1,0 +1,50 @@
+[server]
+port = 3000
+
+# Home Assistant backend (optional — omit section to disable)
+[ha]
+url = "http://homeassistant.local:8123"
+token = "your_long_lived_access_token"
+
+# Zigbee2MQTT backend (optional — omit section to disable)
+[z2m]
+mqtt_host = "mqtt://localhost:1883"
+# mqtt_user = ""
+# mqtt_pass = ""
+base_topic = "zigbee2mqtt"
+
+# Auth (optional — omit section for open mode)
+#
+# Scopes:
+#   ha:read      entity/area state queries, listing, search
+#   ha:control   light control, todo management, service.call
+#   z2m:read     device/group listing, state queries, bridge info
+#   z2m:control  device set, rename, group management, permit_join
+#   *            all scopes
+
+[auth]
+
+# IP whitelist: grant scopes without requiring a token
+[[auth.whitelist]]
+cidrs = ["192.168.0.0/16", "10.0.0.0/8"]
+scopes = ["*"]
+
+# Read-only access from other ranges
+# [[auth.whitelist]]
+# cidrs = ["172.16.0.0/12"]
+# scopes = ["ha:read", "z2m:read"]
+
+# Static tokens with scopes
+[[auth.tokens]]
+token = "change-me-full-access"
+scopes = ["*"]
+
+# [[auth.tokens]]
+# token = "change-me-readonly"
+# scopes = ["ha:read", "z2m:read"]
+
+# Proxy auth: validate bearer token against HA or MQTT broker
+# [auth.proxy]
+# backend = "ha"       # "ha" | "mqtt"
+# scopes = ["*"]
+# cache_ttl = 300      # seconds (0 = no cache)
