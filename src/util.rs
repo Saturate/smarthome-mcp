@@ -47,10 +47,7 @@ mod tests {
 
     #[test]
     fn parse_with_whitespace() {
-        assert_eq!(
-            parse_jinja_list("  [ 'a' , 'b' ]  "),
-            vec!["a", "b"]
-        );
+        assert_eq!(parse_jinja_list("  [ 'a' , 'b' ]  "), vec!["a", "b"]);
     }
 
     #[test]

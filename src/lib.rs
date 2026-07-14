@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod backend_status;
 pub mod config;
 pub mod ha;
 mod server;

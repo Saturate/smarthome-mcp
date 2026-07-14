@@ -81,10 +81,7 @@ impl HaClient {
     ) -> Result<Vec<HaEntityState>, HaError> {
         let resp = self
             .client
-            .post(format!(
-                "{}/api/services/{domain}/{service}",
-                self.base_url
-            ))
+            .post(format!("{}/api/services/{domain}/{service}", self.base_url))
             .json(&data)
             .send()
             .await?

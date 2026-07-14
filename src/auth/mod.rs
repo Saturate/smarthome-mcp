@@ -38,6 +38,13 @@ impl AuthResolver {
         }
     }
 
+    pub fn open() -> Self {
+        Self {
+            config: None,
+            proxy: None,
+        }
+    }
+
     pub async fn resolve(&self, remote_addr: SocketAddr, bearer: Option<&str>) -> GrantedScopes {
         let Some(ref auth_config) = self.config else {
             return GrantedScopes::all();

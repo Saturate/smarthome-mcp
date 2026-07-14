@@ -121,9 +121,9 @@ impl Z2mClient {
             format!("{base_topic}/+/availability"),
         ];
         for topic in &topics {
-            mqtt.subscribe(topic, QoS::AtMostOnce).await.map_err(|e| {
-                Z2mError::Mqtt(format!("subscribe to {topic}: {e}"))
-            })?;
+            mqtt.subscribe(topic, QoS::AtMostOnce)
+                .await
+                .map_err(|e| Z2mError::Mqtt(format!("subscribe to {topic}: {e}")))?;
         }
 
         let event_state = state.clone();
@@ -274,10 +274,7 @@ impl Z2mClient {
 
         {
             let mut responses = self.state.bridge_responses.write().await;
-            responses
-                .entry(command.to_string())
-                .or_default()
-                .push(tx);
+            responses.entry(command.to_string()).or_default().push(tx);
         }
 
         let topic = format!("{}/bridge/request/{command}", self.base_topic);
@@ -303,7 +300,11 @@ impl Z2mClient {
         self.state.bridge_info.read().await.clone()
     }
 
-    pub fn find_device_exposes(&self, devices: &[Z2mDevice], device_name: &str) -> Option<Vec<Value>> {
+    pub fn find_device_exposes(
+        &self,
+        devices: &[Z2mDevice],
+        device_name: &str,
+    ) -> Option<Vec<Value>> {
         devices
             .iter()
             .find(|d| d.friendly_name == device_name)
@@ -311,11 +312,7 @@ impl Z2mClient {
             .map(|def| def.exposes.clone())
     }
 
-    pub fn validate_payload(
-        &self,
-        exposes: &[Value],
-        payload: &Value,
-    ) -> Result<(), Vec<String>> {
+    pub fn validate_payload(&self, exposes: &[Value], payload: &Value) -> Result<(), Vec<String>> {
         let Some(obj) = payload.as_object() else {
             return Err(vec!["payload must be a JSON object".to_string()]);
         };
@@ -350,8 +347,7 @@ impl Z2mClient {
                 if let Some(values) = field_def.get("values").and_then(|v| v.as_array())
                     && let Some(val_str) = value.as_str()
                 {
-                    let allowed: Vec<&str> =
-                        values.iter().filter_map(|v| v.as_str()).collect();
+                    let allowed: Vec<&str> = values.iter().filter_map(|v| v.as_str()).collect();
                     if !allowed.contains(&val_str) {
                         errors.push(format!(
                             "'{key}' must be one of [{}], got '{val_str}'",

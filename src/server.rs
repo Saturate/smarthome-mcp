@@ -12,7 +12,8 @@ use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
 use crate::auth::AuthResolver;
-use crate::auth::middleware::AuthLayer;
+use crate::auth::middleware::{AuthLayer, BackendCheckLayer};
+use crate::backend_status::BackendStatus;
 use crate::ha::HaClient;
 use crate::z2m::Z2mClient;
 
@@ -58,7 +59,9 @@ struct AreaParam {
 struct EntityListParam {
     #[schemars(description = "Entity domain: light, sensor, switch, binary_sensor, climate, etc.")]
     domain: String,
-    #[schemars(description = "Filter by device_class attribute, e.g. temperature, humidity, motion")]
+    #[schemars(
+        description = "Filter by device_class attribute, e.g. temperature, humidity, motion"
+    )]
     device_class: Option<String>,
     #[schemars(description = "Filter by state value, e.g. on, off. Omit to return all.")]
     state: Option<String>,
@@ -126,7 +129,9 @@ struct Z2mDeviceNameParam {
 struct Z2mDeviceSetParam {
     #[schemars(description = "Zigbee device friendly name")]
     device: String,
-    #[schemars(description = "JSON payload with device attributes to set (e.g. {\"state\": \"ON\", \"brightness\": 200})")]
+    #[schemars(
+        description = "JSON payload with device attributes to set (e.g. {\"state\": \"ON\", \"brightness\": 200})"
+    )]
     payload: serde_json::Value,
 }
 
@@ -199,26 +204,35 @@ fn summarize_state(entity: &crate::ha::client::HaEntityState) -> serde_json::Val
 impl SmartHomeMcp {
     // ── Entity state queries ────────────────────────────────────────
 
-    #[tool(name = "ha_entity.get_state", description = "Get the current state and attributes of any entity")]
+    #[tool(
+        name = "ha_entity.get_state",
+        description = "Get the current state and attributes of any entity"
+    )]
     async fn ha_entity_get_state(&self, Parameters(p): Parameters<EntityIdParam>) -> String {
-        let ha = match self.ha_or_err() { Ok(h) => h, Err(e) => return e };
+        let ha = match self.ha_or_err() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
         match ha.get_state(&p.entity_id).await {
             Ok(state) => Self::text_result(summarize_state(&state)),
             Err(e) => format!("error: {e}"),
         }
     }
 
-    #[tool(name = "ha_entity.list", description = "List all entities for a domain (e.g. light, sensor, switch, climate) with their current states. Optionally filter by device_class or state.")]
+    #[tool(
+        name = "ha_entity.list",
+        description = "List all entities for a domain (e.g. light, sensor, switch, climate) with their current states. Optionally filter by device_class or state."
+    )]
     async fn ha_entity_list(&self, Parameters(p): Parameters<EntityListParam>) -> String {
-        let ha = match self.ha_or_err() { Ok(h) => h, Err(e) => return e };
+        let ha = match self.ha_or_err() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
         match ha.get_states_by_domain(&p.domain).await {
             Ok(mut entities) => {
                 if let Some(ref dc) = p.device_class {
                     entities.retain(|e| {
-                        e.attributes
-                            .get("device_class")
-                            .and_then(|v| v.as_str())
-                            == Some(dc)
+                        e.attributes.get("device_class").and_then(|v| v.as_str()) == Some(dc)
                     });
                 }
                 if let Some(ref state) = p.state {
@@ -244,9 +258,15 @@ impl SmartHomeMcp {
         }
     }
 
-    #[tool(name = "ha_entity.search", description = "Search entities by keyword across entity IDs and friendly names. Returns matching entities with their current states.")]
+    #[tool(
+        name = "ha_entity.search",
+        description = "Search entities by keyword across entity IDs and friendly names. Returns matching entities with their current states."
+    )]
     async fn ha_entity_search(&self, Parameters(p): Parameters<EntitySearchParam>) -> String {
-        let ha = match self.ha_or_err() { Ok(h) => h, Err(e) => return e };
+        let ha = match self.ha_or_err() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
         let states_result = match p.domain {
             Some(ref d) => ha.get_states_by_domain(d).await,
             None => ha.get_states().await,
@@ -288,9 +308,15 @@ impl SmartHomeMcp {
 
     // ── Area queries ────────────────────────────────────────────────
 
-    #[tool(name = "ha_area.list", description = "List all areas configured in Home Assistant")]
+    #[tool(
+        name = "ha_area.list",
+        description = "List all areas configured in Home Assistant"
+    )]
     async fn ha_area_list(&self) -> String {
-        let ha = match self.ha_or_err() { Ok(h) => h, Err(e) => return e };
+        let ha = match self.ha_or_err() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
         match ha.get_areas().await {
             Ok(area_ids) => {
                 let mut areas = Vec::new();
@@ -304,18 +330,23 @@ impl SmartHomeMcp {
         }
     }
 
-    #[tool(name = "ha_area.get_status", description = "Get the state of all entities in an area")]
+    #[tool(
+        name = "ha_area.get_status",
+        description = "Get the state of all entities in an area"
+    )]
     async fn ha_area_get_status(&self, Parameters(p): Parameters<AreaParam>) -> String {
-        let ha = match self.ha_or_err() { Ok(h) => h, Err(e) => return e };
+        let ha = match self.ha_or_err() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
         match ha.get_entities_in_area(&p.area).await {
             Ok(entity_ids) => {
                 let mut states = Vec::new();
                 for id in &entity_ids {
                     match ha.get_state(id).await {
                         Ok(s) => states.push(summarize_state(&s)),
-                        Err(e) => {
-                            states.push(serde_json::json!({"entity_id": id, "error": e.to_string()}))
-                        }
+                        Err(e) => states
+                            .push(serde_json::json!({"entity_id": id, "error": e.to_string()})),
                     }
                 }
                 Self::text_result(serde_json::json!({"area": p.area, "entities": states}))
@@ -326,14 +357,23 @@ impl SmartHomeMcp {
 
     // ── Todo read ───────────────────────────────────────────────────
 
-    #[tool(name = "ha_todo.get_items", description = "Get items from a Home Assistant todo list. Use ha_entity.list with domain 'todo' to discover available lists first.")]
+    #[tool(
+        name = "ha_todo.get_items",
+        description = "Get items from a Home Assistant todo list. Use ha_entity.list with domain 'todo' to discover available lists first."
+    )]
     async fn ha_todo_get_items(&self, Parameters(p): Parameters<TodoGetParam>) -> String {
-        let ha = match self.ha_or_err() { Ok(h) => h, Err(e) => return e };
+        let ha = match self.ha_or_err() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
         let mut data = serde_json::json!({"entity_id": p.entity_id});
         if let Some(status) = p.status {
             data["status"] = serde_json::Value::String(status);
         }
-        match ha.call_service_with_response("todo", "get_items", data).await {
+        match ha
+            .call_service_with_response("todo", "get_items", data)
+            .await
+        {
             Ok(result) => Self::text_result(result),
             Err(e) => format!("error: {e}"),
         }
@@ -343,8 +383,18 @@ impl SmartHomeMcp {
 
     #[tool(name = "ha_light.turn_on", description = "Turn on a light entity")]
     async fn ha_light_turn_on(&self, Parameters(p): Parameters<EntityIdParam>) -> String {
-        let ha = match self.ha_or_err() { Ok(h) => h, Err(e) => return e };
-        match ha.call_service("light", "turn_on", serde_json::json!({"entity_id": p.entity_id})).await {
+        let ha = match self.ha_or_err() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
+        match ha
+            .call_service(
+                "light",
+                "turn_on",
+                serde_json::json!({"entity_id": p.entity_id}),
+            )
+            .await
+        {
             Ok(result) => Self::text_result(result.iter().map(summarize_state).collect::<Vec<_>>()),
             Err(e) => format!("error: {e}"),
         }
@@ -352,33 +402,72 @@ impl SmartHomeMcp {
 
     #[tool(name = "ha_light.turn_off", description = "Turn off a light entity")]
     async fn ha_light_turn_off(&self, Parameters(p): Parameters<EntityIdParam>) -> String {
-        let ha = match self.ha_or_err() { Ok(h) => h, Err(e) => return e };
-        match ha.call_service("light", "turn_off", serde_json::json!({"entity_id": p.entity_id})).await {
+        let ha = match self.ha_or_err() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
+        match ha
+            .call_service(
+                "light",
+                "turn_off",
+                serde_json::json!({"entity_id": p.entity_id}),
+            )
+            .await
+        {
             Ok(result) => Self::text_result(result.iter().map(summarize_state).collect::<Vec<_>>()),
             Err(e) => format!("error: {e}"),
         }
     }
 
-    #[tool(name = "ha_light.set_brightness", description = "Set the brightness of a light (0-255)")]
+    #[tool(
+        name = "ha_light.set_brightness",
+        description = "Set the brightness of a light (0-255)"
+    )]
     async fn ha_light_set_brightness(&self, Parameters(p): Parameters<BrightnessParam>) -> String {
-        let ha = match self.ha_or_err() { Ok(h) => h, Err(e) => return e };
-        match ha.call_service("light", "turn_on", serde_json::json!({"entity_id": p.entity_id, "brightness": p.brightness})).await {
+        let ha = match self.ha_or_err() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
+        match ha
+            .call_service(
+                "light",
+                "turn_on",
+                serde_json::json!({"entity_id": p.entity_id, "brightness": p.brightness}),
+            )
+            .await
+        {
             Ok(result) => Self::text_result(result.iter().map(summarize_state).collect::<Vec<_>>()),
             Err(e) => format!("error: {e}"),
         }
     }
 
-    #[tool(name = "ha_light.turn_on_in_area", description = "Turn on all lights in a named area (e.g. kitchen, living_room)")]
+    #[tool(
+        name = "ha_light.turn_on_in_area",
+        description = "Turn on all lights in a named area (e.g. kitchen, living_room)"
+    )]
     async fn ha_light_turn_on_in_area(&self, Parameters(p): Parameters<AreaParam>) -> String {
-        let ha = match self.ha_or_err() { Ok(h) => h, Err(e) => return e };
+        let ha = match self.ha_or_err() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
         match ha.get_entities_in_area(&p.area).await {
             Ok(entities) => {
-                let lights: Vec<_> = entities.into_iter().filter(|e| e.starts_with("light.")).collect();
+                let lights: Vec<_> = entities
+                    .into_iter()
+                    .filter(|e| e.starts_with("light."))
+                    .collect();
                 if lights.is_empty() {
-                    return Self::text_result(serde_json::json!({"message": format!("No lights found in area '{}'", p.area)}));
+                    return Self::text_result(
+                        serde_json::json!({"message": format!("No lights found in area '{}'", p.area)}),
+                    );
                 }
-                match ha.call_service("light", "turn_on", serde_json::json!({"entity_id": lights})).await {
-                    Ok(result) => Self::text_result(result.iter().map(summarize_state).collect::<Vec<_>>()),
+                match ha
+                    .call_service("light", "turn_on", serde_json::json!({"entity_id": lights}))
+                    .await
+                {
+                    Ok(result) => {
+                        Self::text_result(result.iter().map(summarize_state).collect::<Vec<_>>())
+                    }
                     Err(e) => format!("error: {e}"),
                 }
             }
@@ -386,17 +475,37 @@ impl SmartHomeMcp {
         }
     }
 
-    #[tool(name = "ha_light.turn_off_in_area", description = "Turn off all lights in a named area")]
+    #[tool(
+        name = "ha_light.turn_off_in_area",
+        description = "Turn off all lights in a named area"
+    )]
     async fn ha_light_turn_off_in_area(&self, Parameters(p): Parameters<AreaParam>) -> String {
-        let ha = match self.ha_or_err() { Ok(h) => h, Err(e) => return e };
+        let ha = match self.ha_or_err() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
         match ha.get_entities_in_area(&p.area).await {
             Ok(entities) => {
-                let lights: Vec<_> = entities.into_iter().filter(|e| e.starts_with("light.")).collect();
+                let lights: Vec<_> = entities
+                    .into_iter()
+                    .filter(|e| e.starts_with("light."))
+                    .collect();
                 if lights.is_empty() {
-                    return Self::text_result(serde_json::json!({"message": format!("No lights found in area '{}'", p.area)}));
+                    return Self::text_result(
+                        serde_json::json!({"message": format!("No lights found in area '{}'", p.area)}),
+                    );
                 }
-                match ha.call_service("light", "turn_off", serde_json::json!({"entity_id": lights})).await {
-                    Ok(result) => Self::text_result(result.iter().map(summarize_state).collect::<Vec<_>>()),
+                match ha
+                    .call_service(
+                        "light",
+                        "turn_off",
+                        serde_json::json!({"entity_id": lights}),
+                    )
+                    .await
+                {
+                    Ok(result) => {
+                        Self::text_result(result.iter().map(summarize_state).collect::<Vec<_>>())
+                    }
                     Err(e) => format!("error: {e}"),
                 }
             }
@@ -406,18 +515,39 @@ impl SmartHomeMcp {
 
     // ── Todo write ──────────────────────────────────────────────────
 
-    #[tool(name = "ha_todo.add_item", description = "Add an item to a Home Assistant todo list")]
+    #[tool(
+        name = "ha_todo.add_item",
+        description = "Add an item to a Home Assistant todo list"
+    )]
     async fn ha_todo_add_item(&self, Parameters(p): Parameters<TodoAddParam>) -> String {
-        let ha = match self.ha_or_err() { Ok(h) => h, Err(e) => return e };
-        match ha.call_service("todo", "add_item", serde_json::json!({"entity_id": p.entity_id, "item": p.item})).await {
-            Ok(result) => Self::text_result(serde_json::json!({"added": p.item, "list": p.entity_id, "state": result})),
+        let ha = match self.ha_or_err() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
+        match ha
+            .call_service(
+                "todo",
+                "add_item",
+                serde_json::json!({"entity_id": p.entity_id, "item": p.item}),
+            )
+            .await
+        {
+            Ok(result) => Self::text_result(
+                serde_json::json!({"added": p.item, "list": p.entity_id, "state": result}),
+            ),
             Err(e) => format!("error: {e}"),
         }
     }
 
-    #[tool(name = "ha_todo.update_item", description = "Update a todo item's text or status (mark as completed/needs_action). Use ha_todo.get_items first to find the item name.")]
+    #[tool(
+        name = "ha_todo.update_item",
+        description = "Update a todo item's text or status (mark as completed/needs_action). Use ha_todo.get_items first to find the item name."
+    )]
     async fn ha_todo_update_item(&self, Parameters(p): Parameters<TodoUpdateParam>) -> String {
-        let ha = match self.ha_or_err() { Ok(h) => h, Err(e) => return e };
+        let ha = match self.ha_or_err() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
         let mut data = serde_json::json!({"entity_id": p.entity_id, "item": p.item});
         if let Some(rename) = &p.rename {
             data["rename"] = serde_json::Value::String(rename.clone());
@@ -426,25 +556,48 @@ impl SmartHomeMcp {
             data["status"] = serde_json::Value::String(status.clone());
         }
         match ha.call_service("todo", "update_item", data).await {
-            Ok(result) => Self::text_result(serde_json::json!({"updated": p.item, "list": p.entity_id, "state": result})),
+            Ok(result) => Self::text_result(
+                serde_json::json!({"updated": p.item, "list": p.entity_id, "state": result}),
+            ),
             Err(e) => format!("error: {e}"),
         }
     }
 
-    #[tool(name = "ha_todo.remove_item", description = "Remove an item from a Home Assistant todo list")]
+    #[tool(
+        name = "ha_todo.remove_item",
+        description = "Remove an item from a Home Assistant todo list"
+    )]
     async fn ha_todo_remove_item(&self, Parameters(p): Parameters<TodoRemoveParam>) -> String {
-        let ha = match self.ha_or_err() { Ok(h) => h, Err(e) => return e };
-        match ha.call_service("todo", "remove_item", serde_json::json!({"entity_id": p.entity_id, "item": p.item})).await {
-            Ok(result) => Self::text_result(serde_json::json!({"removed": p.item, "list": p.entity_id, "state": result})),
+        let ha = match self.ha_or_err() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
+        match ha
+            .call_service(
+                "todo",
+                "remove_item",
+                serde_json::json!({"entity_id": p.entity_id, "item": p.item}),
+            )
+            .await
+        {
+            Ok(result) => Self::text_result(
+                serde_json::json!({"removed": p.item, "list": p.entity_id, "state": result}),
+            ),
             Err(e) => format!("error: {e}"),
         }
     }
 
     // ── Generic service call ────────────────────────────────────────
 
-    #[tool(name = "ha_service.call", description = "Call any Home Assistant service (escape hatch for anything not covered by other tools)")]
+    #[tool(
+        name = "ha_service.call",
+        description = "Call any Home Assistant service (escape hatch for anything not covered by other tools)"
+    )]
     async fn ha_service_call(&self, Parameters(p): Parameters<ServiceCallParam>) -> String {
-        let ha = match self.ha_or_err() { Ok(h) => h, Err(e) => return e };
+        let ha = match self.ha_or_err() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
         let data = p.data.unwrap_or(serde_json::json!({}));
         match ha.call_service(&p.domain, &p.service, data).await {
             Ok(result) => Self::text_result(result),
@@ -454,9 +607,15 @@ impl SmartHomeMcp {
 
     // ── Z2M read tools ──────────────────────────────────────────────
 
-    #[tool(name = "z2m_device.list", description = "List all Zigbee devices with their exposed features")]
+    #[tool(
+        name = "z2m_device.list",
+        description = "List all Zigbee devices with their exposed features"
+    )]
     async fn z2m_device_list(&self) -> String {
-        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+        let z2m = match self.z2m_or_err() {
+            Ok(z) => z,
+            Err(e) => return e,
+        };
         let devices = z2m.get_devices().await;
         let result: Vec<serde_json::Value> = devices
             .iter()
@@ -478,9 +637,15 @@ impl SmartHomeMcp {
         Self::text_result(result)
     }
 
-    #[tool(name = "z2m_device.get_state", description = "Get current state of a Zigbee device (includes availability)")]
+    #[tool(
+        name = "z2m_device.get_state",
+        description = "Get current state of a Zigbee device (includes availability)"
+    )]
     async fn z2m_device_get_state(&self, Parameters(p): Parameters<Z2mDeviceNameParam>) -> String {
-        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+        let z2m = match self.z2m_or_err() {
+            Ok(z) => z,
+            Err(e) => return e,
+        };
         let state = z2m.get_device_state(&p.device).await;
         let availability = z2m.get_device_availability(&p.device).await;
         Self::text_result(serde_json::json!({
@@ -492,24 +657,41 @@ impl SmartHomeMcp {
 
     #[tool(name = "z2m_group.list", description = "List all Zigbee2MQTT groups")]
     async fn z2m_group_list(&self) -> String {
-        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+        let z2m = match self.z2m_or_err() {
+            Ok(z) => z,
+            Err(e) => return e,
+        };
         Self::text_result(z2m.get_groups().await)
     }
 
-    #[tool(name = "z2m_bridge.info", description = "Get Zigbee2MQTT bridge info (coordinator, version, network)")]
+    #[tool(
+        name = "z2m_bridge.info",
+        description = "Get Zigbee2MQTT bridge info (coordinator, version, network)"
+    )]
     async fn z2m_bridge_info(&self) -> String {
-        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+        let z2m = match self.z2m_or_err() {
+            Ok(z) => z,
+            Err(e) => return e,
+        };
         match z2m.get_bridge_info().await {
             Some(info) => Self::text_result(info),
-            None => Self::text_result(serde_json::json!({"message": "bridge info not yet available"})),
+            None => {
+                Self::text_result(serde_json::json!({"message": "bridge info not yet available"}))
+            }
         }
     }
 
     // ── Z2M control tools ───────────────────────────────────────────
 
-    #[tool(name = "z2m_device.set", description = "Set Zigbee device state. Payload is validated against the device's exposes definition.")]
+    #[tool(
+        name = "z2m_device.set",
+        description = "Set Zigbee device state. Payload is validated against the device's exposes definition."
+    )]
     async fn z2m_device_set(&self, Parameters(p): Parameters<Z2mDeviceSetParam>) -> String {
-        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+        let z2m = match self.z2m_or_err() {
+            Ok(z) => z,
+            Err(e) => return e,
+        };
 
         let devices = z2m.get_devices().await;
         if let Some(exposes) = z2m.find_device_exposes(&devices, &p.device)
@@ -526,7 +708,8 @@ impl SmartHomeMcp {
             Ok(()) => {
                 let mut result = serde_json::json!({"device": p.device, "status": "sent"});
                 if availability == Some(false) {
-                    result["warning"] = serde_json::json!("device is currently unavailable; command queued");
+                    result["warning"] =
+                        serde_json::json!("device is currently unavailable; command queued");
                 }
                 Self::text_result(result)
             }
@@ -536,8 +719,17 @@ impl SmartHomeMcp {
 
     #[tool(name = "z2m_device.rename", description = "Rename a Zigbee device")]
     async fn z2m_device_rename(&self, Parameters(p): Parameters<Z2mDeviceRenameParam>) -> String {
-        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
-        match z2m.bridge_request("device/rename", serde_json::json!({"from": p.from, "to": p.to})).await {
+        let z2m = match self.z2m_or_err() {
+            Ok(z) => z,
+            Err(e) => return e,
+        };
+        match z2m
+            .bridge_request(
+                "device/rename",
+                serde_json::json!({"from": p.from, "to": p.to}),
+            )
+            .await
+        {
             Ok(resp) => Self::text_result(resp),
             Err(e) => format!("error: {e}"),
         }
@@ -545,7 +737,10 @@ impl SmartHomeMcp {
 
     #[tool(name = "z2m_group.add", description = "Create a Zigbee2MQTT group")]
     async fn z2m_group_add(&self, Parameters(p): Parameters<Z2mGroupAddParam>) -> String {
-        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+        let z2m = match self.z2m_or_err() {
+            Ok(z) => z,
+            Err(e) => return e,
+        };
         let mut data = serde_json::json!({"friendly_name": p.friendly_name});
         if let Some(id) = p.id {
             data["id"] = serde_json::json!(id);
@@ -556,9 +751,18 @@ impl SmartHomeMcp {
         }
     }
 
-    #[tool(name = "z2m_bridge.permit_join", description = "Enable or disable Zigbee permit join")]
-    async fn z2m_bridge_permit_join(&self, Parameters(p): Parameters<Z2mPermitJoinParam>) -> String {
-        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
+    #[tool(
+        name = "z2m_bridge.permit_join",
+        description = "Enable or disable Zigbee permit join"
+    )]
+    async fn z2m_bridge_permit_join(
+        &self,
+        Parameters(p): Parameters<Z2mPermitJoinParam>,
+    ) -> String {
+        let z2m = match self.z2m_or_err() {
+            Ok(z) => z,
+            Err(e) => return e,
+        };
         let mut data = serde_json::json!({"value": p.value});
         if let Some(device) = p.device {
             data["device"] = serde_json::json!(device);
@@ -569,10 +773,22 @@ impl SmartHomeMcp {
         }
     }
 
-    #[tool(name = "z2m_bridge.networkmap", description = "Request Zigbee network map")]
+    #[tool(
+        name = "z2m_bridge.networkmap",
+        description = "Request Zigbee network map"
+    )]
     async fn z2m_bridge_networkmap(&self) -> String {
-        let z2m = match self.z2m_or_err() { Ok(z) => z, Err(e) => return e };
-        match z2m.bridge_request("networkmap", serde_json::json!({"type": "raw", "routes": false})).await {
+        let z2m = match self.z2m_or_err() {
+            Ok(z) => z,
+            Err(e) => return e,
+        };
+        match z2m
+            .bridge_request(
+                "networkmap",
+                serde_json::json!({"type": "raw", "routes": false}),
+            )
+            .await
+        {
             Ok(resp) => Self::text_result(resp),
             Err(e) => format!("error: {e}"),
         }
@@ -592,8 +808,8 @@ pub fn create_mcp_router(
     let config = StreamableHttpServerConfig::default().with_cancellation_token(ct);
     let session_manager = Arc::new(LocalSessionManager::default());
 
-    let ha_for_health = ha.clone();
-    let z2m_for_health = z2m.clone();
+    let backend_status = BackendStatus::new(ha.clone(), z2m.clone());
+    let health_status = backend_status.clone();
 
     let service = StreamableHttpService::new(
         move || {
@@ -606,55 +822,48 @@ pub fn create_mcp_router(
         config,
     );
 
-    let router = if let Some(resolver) = auth {
-        let auth_service = tower::ServiceBuilder::new()
-            .layer(AuthLayer::new(resolver))
-            .service(service);
-        axum::Router::new().nest_service("/mcp", auth_service)
-    } else {
-        axum::Router::new().nest_service("/mcp", service)
+    let router = match auth {
+        Some(resolver) => {
+            let layer = AuthLayer::new(resolver).with_backend_status(backend_status);
+            let layered = tower::ServiceBuilder::new().layer(layer).service(service);
+            axum::Router::new().nest_service("/mcp", layered)
+        }
+        None => {
+            let layered = tower::ServiceBuilder::new()
+                .layer(BackendCheckLayer::new(backend_status))
+                .service(service);
+            axum::Router::new().nest_service("/mcp", layered)
+        }
     };
 
     router.route(
         "/health",
-        axum::routing::get(move || health_handler(ha_for_health.clone(), z2m_for_health.clone())),
+        axum::routing::get(move || health_handler(health_status.clone())),
     )
 }
 
-async fn health_handler(
-    ha: Option<HaClient>,
-    z2m: Option<Z2mClient>,
-) -> axum::Json<serde_json::Value> {
+async fn health_handler(status: BackendStatus) -> axum::Json<serde_json::Value> {
     let mut backends = serde_json::Map::new();
     let mut all_ok = true;
     let mut any_configured = false;
 
-    if let Some(ref ha) = ha {
+    if status.ha_configured() {
         any_configured = true;
-        match ha.check_connection().await {
-            Ok(()) => {
-                backends.insert(
-                    "ha".to_string(),
-                    serde_json::json!({"status": "ok"}),
-                );
-            }
-            Err(e) => {
-                all_ok = false;
-                backends.insert(
-                    "ha".to_string(),
-                    serde_json::json!({"status": "unavailable", "error": e.to_string()}),
-                );
-            }
+        if status.ha_available() == Some(true) {
+            backends.insert("ha".to_string(), serde_json::json!({"status": "ok"}));
+        } else {
+            all_ok = false;
+            backends.insert(
+                "ha".to_string(),
+                serde_json::json!({"status": "unavailable", "error": "HA REST API unreachable"}),
+            );
         }
     }
 
-    if let Some(ref z2m) = z2m {
+    if status.z2m_configured() {
         any_configured = true;
-        if z2m.is_connected().await {
-            backends.insert(
-                "z2m".to_string(),
-                serde_json::json!({"status": "ok"}),
-            );
+        if status.z2m_available().await == Some(true) {
+            backends.insert("z2m".to_string(), serde_json::json!({"status": "ok"}));
         } else {
             all_ok = false;
             backends.insert(
@@ -664,16 +873,19 @@ async fn health_handler(
         }
     }
 
-    let status = if !any_configured || all_ok {
+    let status_str = if !any_configured || all_ok {
         "ok"
-    } else if backends.values().all(|v| v.get("status").and_then(|s| s.as_str()) == Some("unavailable")) {
+    } else if backends
+        .values()
+        .all(|v| v.get("status").and_then(|s| s.as_str()) == Some("unavailable"))
+    {
         "unavailable"
     } else {
         "degraded"
     };
 
     axum::Json(serde_json::json!({
-        "status": status,
+        "status": status_str,
         "backends": backends,
     }))
 }

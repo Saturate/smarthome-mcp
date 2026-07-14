@@ -49,15 +49,23 @@ pub fn parse_scopes(strings: &[String]) -> HashSet<Scope> {
 pub fn tool_required_scope(tool_name: &str) -> Option<Scope> {
     match tool_name {
         // HA read
-        "ha_entity.get_state" | "ha_entity.list" | "ha_entity.search" | "ha_area.get_status"
-        | "ha_area.list" | "ha_todo.get_items" => Some(Scope::HaRead),
+        "ha_entity.get_state"
+        | "ha_entity.list"
+        | "ha_entity.search"
+        | "ha_area.get_status"
+        | "ha_area.list"
+        | "ha_todo.get_items" => Some(Scope::HaRead),
 
         // HA control
-        "ha_light.turn_on" | "ha_light.turn_off" | "ha_light.set_brightness"
-        | "ha_light.turn_on_in_area" | "ha_light.turn_off_in_area" | "ha_todo.add_item"
-        | "ha_todo.update_item" | "ha_todo.remove_item" | "ha_service.call" => {
-            Some(Scope::HaControl)
-        }
+        "ha_light.turn_on"
+        | "ha_light.turn_off"
+        | "ha_light.set_brightness"
+        | "ha_light.turn_on_in_area"
+        | "ha_light.turn_off_in_area"
+        | "ha_todo.add_item"
+        | "ha_todo.update_item"
+        | "ha_todo.remove_item"
+        | "ha_service.call" => Some(Scope::HaControl),
 
         // Z2M read
         "z2m_device.list" | "z2m_device.get_state" | "z2m_group.list" | "z2m_bridge.info" => {
@@ -65,7 +73,10 @@ pub fn tool_required_scope(tool_name: &str) -> Option<Scope> {
         }
 
         // Z2M control
-        "z2m_device.set" | "z2m_device.rename" | "z2m_group.add" | "z2m_bridge.permit_join"
+        "z2m_device.set"
+        | "z2m_device.rename"
+        | "z2m_group.add"
+        | "z2m_bridge.permit_join"
         | "z2m_bridge.networkmap" => Some(Scope::Z2mControl),
 
         _ => None,
@@ -110,10 +121,7 @@ mod tests {
             tool_required_scope("ha_light.turn_on"),
             Some(Scope::HaControl)
         );
-        assert_eq!(
-            tool_required_scope("z2m_device.list"),
-            Some(Scope::Z2mRead)
-        );
+        assert_eq!(tool_required_scope("z2m_device.list"), Some(Scope::Z2mRead));
         assert_eq!(
             tool_required_scope("z2m_device.set"),
             Some(Scope::Z2mControl)
